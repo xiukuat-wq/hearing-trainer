@@ -12,8 +12,6 @@
             --danger: #ef476f;
             --dark: #2d3436;
             --light: #f8f9fa;
-            --mic-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* 紫色背景 */
-            --text-bg: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); /* 橙色背景 */
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; }
         body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; display: flex; justify-content: center; align-items: center; }
@@ -96,14 +94,12 @@
             justify-content: center;
             flex: 1;
         }
-        .train-display.mic-mode { background: var(--mic-bg); color: white; }
-        .train-display.text-mode { background: var(--text-bg); color: white; }
-        .train-display.listening { border-color: var(--primary); background: linear-gradient(135deg, #f0f8ff, #e3f2fd); }
-        .train-display.correct { border-color: var(--success); background: linear-gradient(135deg, #f0fff4, #e8f5e9); }
-        .train-display.wrong { border-color: var(--danger); background: linear-gradient(135deg, #fff5f5, #ffebee); }
+        .train-display.listening { border-color: var(--primary); }
+        .train-display.correct { border-color: var(--success); }
+        .train-display.wrong { border-color: var(--danger); }
         
-        #trainPhase { font-size: 1.8em; font-weight: bold; margin-bottom: 20px; min-height: 60px; }
-        #answerWord { font-size: 3.2em; font-weight: bold; margin: 15px 0; min-height: 80px; }
+        #trainPhase { font-size: 1.8em; color: var(--dark); font-weight: bold; margin-bottom: 20px; min-height: 60px; }
+        #answerWord { font-size: 3.2em; color: var(--dark); font-weight: bold; margin: 15px 0; min-height: 80px; }
         #feedbackText { font-size: 1.6em; font-weight: bold; margin: 20px 0; min-height: 50px; }
         .feedback-correct { color: var(--success); }
         .feedback-wrong { color: var(--danger); }
@@ -257,7 +253,7 @@
                     </div>
                     
                     <!-- 训练核心显示区 -->
-                    <div class="train-display mic-mode" id="trainDisplay">
+                    <div class="train-display" id="trainDisplay">
                         <div id="trainPhase">准备开始训练...</div>
                         <div id="answerWord"></div>
                         <div id="feedbackText"></div>
@@ -432,16 +428,14 @@
                 }
             });
             
-            // 更新训练框背景
+            // 更新界面显示
             if (mode === 'mic') {
-                trainDisplay.className = 'train-display mic-mode';
                 micStatusText.textContent = "麦克风跟读模式";
                 currentModeDisplay.textContent = "麦克风跟读模式";
                 permissionGuide.classList.add('show');
                 permissionInfoBox.classList.add('show');
                 textInput.classList.remove('show');
             } else {
-                trainDisplay.className = 'train-display text-mode';
                 micStatusText.textContent = "打字输入模式";
                 currentModeDisplay.textContent = "打字输入模式";
                 permissionGuide.classList.remove('show');
