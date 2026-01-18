@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>训听器 | 跟读挑战</title>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --success: #06d6a0;
+            --warning: #ffd166;
+            --danger: #ef476f;
+            --dark: #2d3436;
+            --light: #f8f9fa;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; }
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; display: flex; justify-content: center; align-items: center; }
+        .container { background: white; border-radius: 30px; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.25); width: 100%; max-width: 1100px; padding: 40px; margin: 20px; }
+        
+        .header { text-align: center; margin-bottom: 40px; }
+        h1 { color: var(--dark); font-size: 2.8em; margin-bottom: 10px; background: linear-gradient(90deg, var(--primary), #9d4edd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .subtitle { color: #636e72; font-size: 1.1em; }
+        
+        .main-area { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+        @media (max-width: 900px) { .main-area { grid-template-columns: 1fr; } }
+        
+        .panel { background: var(--light); border-radius: 25px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .panel-title { font-size: 1.4em; color: var(--primary); margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid var(--primary); display: flex; align-items: center; gap: 12px; }
+        
+        /* 左侧词汇面板 */
+        #customWordList { width: 100%; height: 320px; padding: 25px; border: 3px solid #a29bfe; border-radius: 20px; font-size: 18px; line-height: 1.8; resize: vertical; background: #f9f9ff; margin-bottom: 20px; transition: border 0.3s; }
+        #customWordList:focus { border-color: var(--primary); outline: none; }
+        .vocab-stats { display: flex; justify-content: space-between; color: #636e72; font-size: 1.1em; }
+        .vocab-stats span { color: var(--primary); font-weight: bold; }
+        
+        /* 右侧设置面板 */
+        .settings-group { background: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; border: 2px solid #dfe6e9; }
+        .setting-row { display: flex; flex-wrap: wrap; gap: 25px; margin-bottom: 20px; }
+        .setting-item { flex: 1; min-width: 180px; }
+        .setting-item label { display: block; font-weight: bold; color: var(--dark); margin-bottom: 10px; font-size: 1.1em; }
+        .setting-item input, .setting-item select { width: 100%; padding: 15px; border: 3px solid #dfe6e9; border-radius: 15px; font-size: 16px; transition: all 0.3s; }
+        .setting-item select:focus, .setting-item input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1); }
+        
+        /* 模式切换 */
+        .mode-toggle { display: flex; background: #e9ecef; border-radius: 15px; padding: 5px; margin-bottom: 25px; }
+        .mode-btn { flex: 1; padding: 18px; text-align: center; border-radius: 12px; font-weight: bold; cursor: pointer; transition: all 0.3s; border: 2px solid transparent; }
+        .mode-btn.active { background: white; border-color: var(--primary); color: var(--primary); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        
+        /* 麦克风权限提示 */
+        .permission-guide { background: linear-gradient(135deg, #fff9e6, #ffeaa7); border-left: 5px solid var(--warning); padding: 20px; border-radius: 15px; margin-bottom: 25px; display: none; }
+        .permission-guide.show { display: block; }
+        .permission-guide h4 { color: #e17055; margin-bottom: 10px; }
+        
+        /* 训练显示区 */
+        .train-display { background: white; border-radius: 25px; padding: 40px 30px; text-align: center; margin: 25px 0; border: 4px solid #dfe6e9; transition: all 0.4s; min-height: 320px; display: flex; flex-direction: column; justify-content: center; }
+        .train-display.listening { border-color: var(--primary); background: linear-gradient(135deg, #f0f8ff, #e3f2fd); }
+        .train-display.correct { border-color: var(--success); background: linear-gradient(135deg, #f0fff4, #e8f5e9); }
+        .train-display.wrong { border-color: var(--danger); background: linear-gradient(135deg, #fff5f5, #ffebee); }
+        
+        #trainPhase { font-size: 1.8em; color: var(--dark); font-weight: bold; margin-bottom: 20px; min-height: 60px; }
+        #answerWord { font-size: 3.2em; font-weight: bold; color: var(--dark); margin: 15px 0; min-height: 80px; }
+        #feedbackText { font-size: 1.6em; font-weight: bold; margin: 20px 0; min-height: 50px; }
+        .feedback-correct { color: var(--success); }
+        .feedback-wrong { color: var(--danger); }
+        
+        /* 输入区域 */
+        .input-area { width: 100%; margin: 25px 0; }
+        #textInput { width: 100%; padding: 25px; font-size: 1.8em; text-align: center; border: 4px solid var(--primary); border-radius: 20px; outline: none; display: none; }
+        #textInput.show { display: block; }
+        
+        /* 麦克风状态 */
+        .mic-status { display: flex; align-items: center; justify-content: center; gap: 20px; margin: 25px 0; }
+        .mic-icon { font-size: 3em; transition: all 0.3s; }
+        .mic-icon.listening { color: var(--primary); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        #micStatusText { font-size: 1.3em; color: #636e72; font-weight: bold; }
+        
+        /* 控制按钮 */
+        .control-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 30px; }
+        button { padding: 20px 25px; border: none; border-radius: 16px; font-size: 1.2em; font-weight: bold; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 12px; }
+        #startBtn { background: linear-gradient(135deg, var(--success), #05a078); color: white; }
+        #stopBtn { background: linear-gradient(135deg, var(--danger), #d63031); color: white; }
+        #submitBtn { background: linear-gradient(135deg, var(--primary), #3a56d4); color: white; }
+        #saveBtn { background: linear-gradient(135deg, #9d4edd, #7b2cbf); color: white; }
+        button:hover:not(:disabled) { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); }
+        button:disabled { background: #b2bec3 !important; cursor: not-allowed; transform: none; opacity: 0.6; }
+        
+        /* 统计信息 */
+        .stats-bar { display: flex; justify-content: space-around; background: #f1f2f6; padding: 25px; border-radius: 20px; margin-top: 30px; }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 2.2em; color: var(--primary); font-weight: bold; display: block; }
+        .stat-label { color: #636e72; font-size: 0.95em; margin-top: 8px; }
+        
+        /* 提示信息 */
+        .tip-box { background: #fff9e6; border-left: 5px solid var(--warning); padding: 25px; border-radius: 15px; margin-top: 35px; }
+        .tip-title { font-weight: bold; color: #e17055; margin-bottom: 15px; font-size: 1.2em; }
+        
+        /* 网站标识 */
+        .site-badge { text-align: center; margin-top: 30px; color: #636e72; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎤 训听器 · 跟读版</h1>
+            <p class="subtitle">HTTPS网站环境 | 麦克风权限优化 | 双模式训练</p>
+        </div>
+        
+        <div class="main-area">
+            <!-- 左侧：词汇管理区 -->
+            <div class="panel">
+                <div class="panel-title">📝 您的专属词库</div>
+                <textarea id="customWordList" placeholder="请在此录入您需要训练的词汇或短句，每行一个。
+
+例如：
+人工智能
+神经网络
+机器学习
+项目管理
+团队协作
+季度汇报
+市场分析
+...">人工智能
+神经网络
+机器学习
+深度学习
+算法优化
+数据处理</textarea>
+                <div class="vocab-stats">
+                    <div>词汇数: <span id="wordCountDisplay">6</span> 个</div>
+                    <div>建议每次训练 5-20 个词</div>
+                </div>
+            </div>
+            
+            <!-- 右侧：训练控制区 -->
+            <div class="panel">
+                <div class="panel-title">⚙️ 训练设置</div>
+                
+                <div class="settings-group">
+                    <!-- 模式切换 -->
+                    <div class="mode-toggle">
+                        <div class="mode-btn active" data-mode="mic">🎤 麦克风跟读</div>
+                        <div class="mode-btn" data-mode="text">⌨️ 打字输入</div>
+                    </div>
+                    
+                    <div class="setting-row">
+                        <div class="setting-item">
+                            <label>🔢 训练数量：</label>
+                            <input type="number" id="trainCount" value="6" min="1" max="30">
+                        </div>
+                        <div class="setting-item">
+                            <label>🔊 朗读语速：</label>
+                            <select id="speedRate">
+                                <option value="0.7">很慢 (0.7x)</option>
+                                <option value="0.8" selected>稍慢 (0.8x)</option>
+                                <option value="0.9">中速 (0.9x)</option>
+                                <option value="1.0">标准 (1.0x)</option>
+                                <option value="1.1">稍快 (1.1x)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="setting-row">
+                        <div class="toggle-group" style="display: flex; align-items: center; justify-content: space-between;">
+                            <span class="toggle-label">🔄 随机出题顺序</span>
+                            <label class="switch">
+                                <input type="checkbox" id="randomOrder" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 麦克风权限引导 -->
+                <div class="permission-guide" id="permissionGuide">
+                    <h4>🎤 麦克风权限说明</h4>
+                    <p>“跟读模式”需要麦克风权限。当您第一次点击“开始挑战”时，浏览器会询问是否允许使用麦克风，请点击<strong>“允许”</strong>。</p>
+                    <p><em>提示：权限只需授予一次，以后访问本网站将自动记住。</em></p>
+                </div>
+                
+                <!-- 训练核心显示区 -->
+                <div class="train-display" id="trainDisplay">
+                    <div id="trainPhase">准备开始训练...</div>
+                    <div id="answerWord"></div>
+                    <div id="feedbackText"></div>
+                    
+                    <!-- 打字输入框 -->
+                    <div class="input-area">
+                        <input type="text" id="textInput" placeholder="请输入您听到的词" autocomplete="off">
+                    </div>
+                    
+                    <!-- 麦克风状态 -->
+                    <div class="mic-status">
+                        <div class="mic-icon" id="micIcon">🎤</div>
+                        <div id="micStatusText">麦克风待命</div>
+                    </div>
+                </div>
+                
+                <!-- 控制按钮 -->
+                <div class="control-buttons">
+                    <button id="startBtn">▶️ 开始挑战</button>
+                    <button id="stopBtn" disabled>⏹️ 停止挑战</button>
+                    <button id="submitBtn" disabled>📤 提交答案</button>
+                    <button id="saveBtn">💾 保存词库</button>
+                </div>
+                
+                <!-- 统计信息 -->
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <span class="stat-value" id="totalWordsStat">0</span>
+                        <span class="stat-label">总题数</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="correctWordsStat">0</span>
+                        <span class="stat-label">正确</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="wrongWordsStat">0</span>
+                        <span class="stat-label">需复习</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tip-box">
+            <div class="tip-title">💡 使用指南：</div>
+            <p>1. <strong>选择模式</strong>：上方的“麦克风跟读”或“打字输入”按钮可随时切换。</p>
+            <p>2. <strong>跟读模式</strong>：首次使用需要在浏览器弹窗中<strong>允许麦克风权限</strong>，之后会自动记住。</p>
+            <p>3. <strong>开始挑战</strong>：系统朗读词汇（不显示文字），根据模式进行跟读或打字输入。</p>
+            <p>4. <strong>即时反馈</strong>：系统立即判断对错并显示正确答案。</p>
+            <p>5. <strong>网站优势</strong>：通过HTTPS访问，麦克风权限更稳定，数据自动保存。</p>
+        </div>
+        
+        <div class="site-badge">
+            训听器 · GitHub Pages部署版 | 设计：与DeepSeek共创
+        </div>
+    </div>
+
+    <script>
+        // ==================== 核心变量 ====================
+        const customWordListTextarea = document.getElementById('customWordList');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const trainCountInput = document.getElementById('trainCount');
+        const speedRateSelect = document.getElementById('speedRate');
+        const randomOrderCheckbox = document.getElementById('randomOrder');
+        const permissionGuide = document.getElementById('permissionGuide');
+        const modeButtons = document.querySelectorAll('.mode-btn');
+        
+        // 训练显示元素
+        const trainDisplay = document.getElementById('trainDisplay');
+        const trainPhaseDiv = document.getElementById('trainPhase');
+        const answerWordDiv = document.getElementById('answerWord');
+        const feedbackTextDiv = document.getElementById('feedbackText');
+        const textInput = document.getElementById('textInput');
+        const micIcon = document.getElementById('micIcon');
+        const micStatusText = document.getElementById('micStatusText');
+        
+        // 统计元素
+        const wordCountDisplaySpan = document.getElementById('wordCountDisplay');
+        const totalWordsStatSpan = document.getElementById('totalWordsStat');
+        const correctWordsStatSpan = document.getElementById('correctWordsStat');
+        const wrongWordsStatSpan = document.getElementById('wrongWordsStat');
+
+        // 全局状态
+        let isTraining = false;
+        let isPaused = false;
+        let currentMode = 'mic'; // 'mic' 或 'text'
+        let speechSynth = window.speechSynthesis;
+        let speechRecognition = null;
+        let currentUtterance = null;
+        let advanceTimer = null;
+        
+        // 训练数据
+        let allCustomWords = [];
+        let challengeWords = [];
+        let wrongWords = [];
+        let currentWordIndex = 0;
+        let currentChallengeWord = '';
+        
+        // 统计
+        let totalChallenges = 0;
+        let correctCount = 0;
+        let wrongCount = 0;
+        let isMicPermissionGranted = false;
+
+        // ==================== 初始化 ====================
+        function init() {
+            loadSavedWordList();
+            loadSettings();
+            updateWordCount();
+            setupEventListeners();
+            initSpeechRecognition();
+            checkMicPermission();
+        }
+
+        function loadSavedWordList() {
+            const savedWords = localStorage.getItem('hearingTrainer_vocab');
+            if (savedWords) {
+                customWordListTextarea.value = savedWords;
+            }
+            updateWordCount();
+        }
+
+        function loadSettings() {
+            const savedCount = localStorage.getItem('hearingTrainer_count') || '6';
+            const savedSpeed = localStorage.getItem('hearingTrainer_speed') || '0.8';
+            const savedRandomOrder = localStorage.getItem('hearingTrainer_randomOrder') !== 'false';
+            const savedMode = localStorage.getItem('hearingTrainer_mode') || 'mic';
+
+            trainCountInput.value = savedCount;
+            speedRateSelect.value = savedSpeed;
+            randomOrderCheckbox.checked = savedRandomOrder;
+            setMode(savedMode);
+        }
+
+        function saveSettings() {
+            localStorage.setItem('hearingTrainer_count', trainCountInput.value);
+            localStorage.setItem('hearingTrainer_speed', speedRateSelect.value);
+            localStorage.setItem('hearingTrainer_randomOrder', randomOrderCheckbox.checked);
+            localStorage.setItem('hearingTrainer_mode', currentMode);
+        }
+
+        function updateWordCount() {
+            const words = getWordArrayFromTextarea();
+            wordCountDisplaySpan.textContent = words.length;
+        }
+
+        function getWordArrayFromTextarea() {
+            return customWordListTextarea.value.trim().split('\n').filter(line => line.trim() !== '');
+        }
+
+        // ==================== 模式切换 ====================
+        function setMode(mode) {
+            currentMode = mode;
+            modeButtons.forEach(btn => {
+                if (btn.dataset.mode === mode) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            if (mode === 'mic') {
+                permissionGuide.classList.add('show');
+                textInput.classList.remove('show');
+                micStatusText.textContent = isMicPermissionGranted ? "麦克风就绪" : "需要麦克风权限";
+            } else {
+                permissionGuide.classList.remove('show');
+                textInput.classList.add('show');
+                micStatusText.textContent = "打字输入模式";
+                micIcon.classList.remove('listening');
+            }
+            
+            saveSettings();
+        }
+
+        // ==================== 麦克风权限检查 ====================
+        function checkMicPermission() {
+            if (navigator.permissions && navigator.permissions.query) {
+                navigator.permissions.query({ name: 'microphone' })
+                    .then(permissionStatus => {
+                        isMicPermissionGranted = permissionStatus.state === 'granted';
+                        updateMicStatusUI();
+                        permissionStatus.onchange = function() {
+                            isMicPermissionGranted = this.state === 'granted';
+                            updateMicStatusUI();
+                        };
+                    })
+                    .catch(() => {
+                        isMicPermissionGranted = false;
+                    });
+            } else {
+                isMicPermissionGranted = false;
+            }
+        }
+
+        function updateMicStatusUI() {
+            if (currentMode === 'mic') {
+                if (isMicPermissionGranted) {
+                    micStatusText.textContent = "麦克风已授权";
+                    micIcon.style.color = "#06d6a0";
+                } else {
+                    micStatusText.textContent = "需要麦克风权限";
+                    micIcon.style.color = "#ef476f";
+                }
+            }
+        }
+
+        // ==================== 语音识别初始化 ====================
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                console.log("浏览器不支持语音识别");
+                // 如果浏览器不支持，自动切换到打字模式
+                setMode('text');
+                return;
+            }
+            
+            speechRecognition = new SpeechRecognition();
+            speechRecognition.lang = 'zh-CN';
+            speechRecognition.interimResults = false;
+            speechRecognition.maxAlternatives = 1;
+            
+            speechRecognition.onstart = function() {
+                micIcon.classList.add('listening');
+                micStatusText.textContent = "正在聆听...";
+                trainDisplay.classList.add('listening');
+            };
+            
+            speechRecognition.onend = function() {
+                micIcon.classList.remove('listening');
+                trainDisplay.classList.remove('listening');
+                // 如果是训练中且是麦克风模式，重新启动识别
+                if (isTraining && currentMode === 'mic' && !isPaused) {
+                    setTimeout(() => {
+                        if (speechRecognition && isTraining) {
+                            try {
+                                speechRecognition.start();
+                            } catch(e) {
+                                console.log("重新启动识别失败");
+                            }
+                        }
+                    }, 500);
+                }
+            };
+            
+            speechRecognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript.trim();
+                if (transcript) {
+                    processUserAnswer(transcript);
+                }
+            };
+            
+            speechRecognition.onerror = function(event) {
+                console.log("语音识别错误:", event.error);
+                if (event.error === 'not-allowed') {
+                    micStatusText.textContent = "麦克风被拒绝";
+                    alert("麦克风访问被拒绝。请在浏览器设置中允许此网站使用麦克风。");
+                    setMode('text'); // 自动切换到打字模式
+                }
+                micIcon.classList.remove('listening');
+                trainDisplay.classList.remove('listening');
+            };
+        }
+
+        // ==================== 事件监听 ====================
+        function setupEventListeners() {
+            startBtn.addEventListener('click', startTraining);
+            stopBtn.addEventListener('click', stopTraining);
+            submitBtn.addEventListener('click', submitAnswer);
+            saveBtn.addEventListener('click', saveWordList);
+            textInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') submitAnswer();
+            });
+            
+            modeButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    setMode(this.dataset.mode);
+                });
+            });
+            
+            customWordListTextarea.addEventListener('input', function() {
+                updateWordCount();
+                localStorage.setItem('hearingTrainer_vocab', this.value);
+            });
+            
+            trainCountInput.addEventListener('change', saveSettings);
+            speedRateSelect.addEventListener('change', saveSettings);
+            randomOrderCheckbox.addEventListener('change', saveSettings);
+            
+            window.addEventListener('beforeunload', cleanup);
+        }
+
+        function cleanup() {
+            if (isTraining && currentUtterance && speechSynth.speaking) {
+                speechSynth.cancel();
+            }
+            if (speechRecognition) {
+                speechRecognition.stop();
+            }
+            if (advanceTimer) clearTimeout(advanceTimer);
+        }
+
+        // ==================== 训练引擎核心 ====================
+        function startTraining() {
+            if (isTraining) return;
+            
+            // 获取词汇
+            allCustomWords = getWordArrayFromTextarea();
+            if (allCustomWords.length === 0) {
+                updateTrainPhase("❌ 请先在左侧录入一些词汇。", true);
+                return;
+            }
+            
+            // 检查麦克风模式
+            if (currentMode === 'mic') {
+                if (!speechRecognition) {
+                    updateTrainPhase("❌ 浏览器不支持语音识别，已自动切换到打字模式。", true);
+                    setMode('text');
+                    return;
+                }
+                if (!isMicPermissionGranted) {
+                    updateTrainPhase("🎤 即将请求麦克风权限...", false);
+                }
+            }
+            
+            // 选择训练词汇
+            const count = parseInt(trainCountInput.value);
+            challengeWords = [...allCustomWords];
+            if (randomOrderCheckbox.checked) {
+                challengeWords = shuffleArray(challengeWords);
+            }
+            challengeWords = challengeWords.slice(0, Math.min(count, challengeWords.length));
+            
+            // 重置状态
+            currentWordIndex = 0;
+            wrongWords = [];
+            totalChallenges = challengeWords.length;
+            correctCount = 0;
+            wrongCount = 0;
+            
+            // 更新统计
+            totalWordsStatSpan.textContent = totalChallenges;
+            correctWordsStatSpan.textContent = '0';
+            wrongWordsStatSpan.textContent = '0';
+            
+            // 开始训练
+            isTraining = true;
+            isPaused = false;
+            
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            submitBtn.disabled = true;
+            customWordListTextarea.readOnly = true;
+            textInput.value = '';
+            
+            updateTrainPhase(`🎯 挑战开始！共 ${totalChallenges} 个词`, false);
+            setTimeout(() => speakNextWord(), 1500);
+        }
+
+        function speakNextWord() {
+            if (!isTraining || isPaused || currentWordIndex >= challengeWords.length) {
+                if (currentWordIndex >= challengeWords.length) finishTraining();
+                return;
+            }
+            
+            currentChallengeWord = challengeWords[currentWordIndex];
+            answerWordDiv.textContent = '';
+            feedbackTextDiv.textContent = '';
+            trainDisplay.classList.remove('correct', 'wrong', 'listening');
+            textInput.value = '';
+            submitBtn.disabled = true;
+            
+            updateTrainPhase("🔊 正在朗读，请仔细听...", false);
+            
+            const speed = parseFloat(speedRateSelect.value);
+            currentUtterance = new SpeechSynthesisUtterance(currentChallengeWord);
+            currentUtterance.lang = 'zh-CN';
+            currentUtterance.rate = speed;
+            currentUtterance.pitch = 1;
+            currentUtterance.volume = 1;
+            
+            currentUtterance.onend = function() {
+                if (currentMode === 'mic') {
+                    updateTrainPhase("🎤 请跟读...", false);
+                    micStatusText.textContent = "请开始说话";
+                    submitBtn.disabled = false;
+                    // 启动语音识别
+                    if (speechRecognition && isTraining && !isPaused) {
+                        try {
+                            speechRecognition.start();
+                        } catch(e) {
+                            console.log("启动识别失败:", e);
+                        }
+                    }
+                } else {
+                    updateTrainPhase("✍️ 请输入您听到的词", false);
+                    textInput.focus();
+                    submitBtn.disabled = false;
+                }
+            };
+            
+            speechSynth.speak(currentUtterance);
+        }
+
+        function processUserAnswer(userAnswer) {
+            if (!isTraining) return;
+            
+            const isCorrect = isAnswerCorrect(userAnswer, currentChallengeWord);
+            
+            if (isCorrect) {
+                correctCount++;
+                correctWordsStatSpan.textContent = correctCount;
+                feedbackTextDiv.innerHTML = `<span class="feedback-correct">✅ 正确！（答案：${currentChallengeWord}）</span>`;
+                trainDisplay.classList.add('correct');
+            } else {
+                wrongCount++;
+                wrongWordsStatSpan.textContent = wrongCount;
+                feedbackTextDiv.innerHTML = `<span class="feedback-wrong">❌ 不正确！（正确答案：${currentChallengeWord}）</span>`;
+                trainDisplay.classList.add('wrong');
+                if (!wrongWords.includes(currentChallengeWord)) {
+                    wrongWords.push(currentChallengeWord);
+                }
+            }
+            
+            answerWordDiv.textContent = currentChallengeWord;
+            submitBtn.disabled = true;
+            
+            advanceTimer = setTimeout(() => {
+                currentWordIndex++;
+                if (currentWordIndex < challengeWords.length) {
+                    speakNextWord();
+                } else {
+                    finishTraining();
+                }
+            }, 2000);
+        }
+
+        function submitAnswer() {
+            if (!isTraining || submitBtn.disabled) return;
+            
+            if (currentMode === 'text') {
+                const userAnswer = textInput.value.trim();
+                if (!userAnswer) {
+                    feedbackTextDiv.innerHTML = `<span class="feedback-wrong">⚠️ 请输入答案</span>`;
+                    return;
+                }
+                processUserAnswer(userAnswer);
+            }
+        }
+
+        function stopTraining() {
+            isTraining = false;
+            isPaused = false;
+            
+            if (currentUtterance && speechSynth.speaking) {
+                speechSynth.cancel();
+            }
+            if (speechRecognition) {
+                speechRecognition.stop();
+            }
+            if (advanceTimer) clearTimeout(advanceTimer);
+            
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            submitBtn.disabled = true;
+            customWordListTextarea.readOnly = false;
+            textInput.value = '';
+            
+            answerWordDiv.textContent = '';
+            feedbackTextDiv.textContent = '';
+            trainDisplay.classList.remove('correct', 'wrong', 'listening');
+            micIcon.classList.remove('listening');
+            
+            updateTrainPhase("训练已停止", true);
+            
+            if (wrongWords.length > 0) {
+                setTimeout(() => {
+                    updateTrainPhase(`📝 本次有 ${wrongWords.length} 个词需要复习`, true);
+                    feedbackTextDiv.textContent = wrongWords.join('、');
+                    localStorage.setItem('hearingTrainer_wrongWords', JSON.stringify(wrongWords));
+                }, 800);
+            }
+        }
+
+        function finishTraining() {
+            stopTraining();
+            const accuracy = totalChallenges > 0 ? Math.round(correctCount/totalChallenges*100) : 0;
+            updateTrainPhase(`🎉 挑战完成！正确率：${accuracy}%`, true);
+        }
+
+        // ==================== 工具函数 ====================
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        function isAnswerCorrect(userAnswer, correctAnswer) {
+            const userClean = userAnswer.replace(/\s/g, '');
+            const correctClean = correctAnswer.replace(/\s/g, '');
+            
+            if (userClean === correctClean) return true;
+            
+            if (Math.abs(userClean.length - correctClean.length) <= 2) {
+                if (userClean.includes(correctClean) || correctClean.includes(userClean)) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        function updateTrainPhase(message, isStatic = false) {
+            trainPhaseDiv.textContent = message;
+            trainPhaseDiv.style.color = isStatic ? '#636e72' : '#2d3436';
+        }
+
+        function saveWordList() {
+            const wordList = customWordListTextarea.value.trim();
+            if (!wordList) {
+                feedbackTextDiv.textContent = "❌ 没有内容可以保存";
+                return;
+            }
+            localStorage.setItem('hearingTrainer_vocab', wordList);
+            feedbackTextDiv.innerHTML = `<span class="feedback-correct">💾 已保存 ${getWordArrayFromTextarea().length} 个词汇！</span>`;
+            setTimeout(() => {
+                if (!isTraining) feedbackTextDiv.textContent = '';
+            }, 2000);
+        }
+
+        // ==================== 启动应用 ====================
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
