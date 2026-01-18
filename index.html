@@ -27,10 +27,27 @@
         .panel-title { font-size: 1.4em; color: var(--primary); margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid var(--primary); display: flex; align-items: center; gap: 12px; }
         
         /* 左侧词汇面板 */
-        #customWordList { width: 100%; height: 320px; padding: 25px; border: 3px solid #a29bfe; border-radius: 20px; font-size: 18px; line-height: 1.8; resize: vertical; background: #f9f9ff; margin-bottom: 20px; transition: border 0.3s; }
+        #customWordList { width: 100%; height: 320px; padding: 25px; border: 3px solid #a29bfe; border-radius: 20px; font-size: 18px; line-height: 1.8; resize: vertical; background: #f9f9ff; margin-bottom: 15px; transition: border 0.3s; }
         #customWordList:focus { border-color: var(--primary); outline: none; }
-        .vocab-stats { display: flex; justify-content: space-between; color: #636e72; font-size: 1.1em; }
+        .vocab-stats { display: flex; justify-content: space-between; color: #636e72; font-size: 1.1em; margin-bottom: 15px; }
         .vocab-stats span { color: var(--primary); font-weight: bold; }
+        
+        /* 清空按钮 */
+        .clear-btn { 
+            width: 100%; 
+            padding: 15px; 
+            background: linear-gradient(135deg, #4361ee, #3a56d4); 
+            color: white; 
+            border: none; 
+            border-radius: 15px; 
+            font-size: 1.1em; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .clear-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); }
+        .clear-btn:disabled { background: #b2bec3 !important; cursor: not-allowed; transform: none; opacity: 0.6; }
         
         /* 右侧设置面板 */
         .settings-group { background: white; padding: 25px; border-radius: 20px; margin-bottom: 25px; border: 2px solid #dfe6e9; }
@@ -170,7 +187,7 @@
         <div class="main-area">
             <!-- 左侧：词汇管理区 -->
             <div class="panel">
-                <div class="panel-title">📝 您的专属词库</div>
+                <div class="panel-title">📝 听力训练内容</div>
                 <textarea id="customWordList" placeholder="请在此录入您需要训练的词汇或短句，每行一个。
 
 例如：
@@ -191,6 +208,7 @@
                     <div>词汇数: <span id="wordCountDisplay">6</span> 个</div>
                     <div>建议每次训练 5-20 个词</div>
                 </div>
+                <button class="clear-btn" id="clearBtn">清空内容</button>
             </div>
             
             <!-- 右侧：训练控制区 -->
@@ -325,6 +343,7 @@
         const stopBtn = document.getElementById('stopBtn');
         const pauseBtn = document.getElementById('pauseBtn');
         const saveBtn = document.getElementById('saveBtn');
+        const clearBtn = document.getElementById('clearBtn');
         const trainCountInput = document.getElementById('trainCount');
         const speedRateSelect = document.getElementById('speedRate');
         const randomOrderCheckbox = document.getElementById('randomOrder');
@@ -355,6 +374,8 @@
         let speechRecognition = null;
         let currentUtterance = null;
         let advanceTimer = null;
+        let recordTimer = null; // 录音计时器
+        let isRecording = false; // 是否正在录音
         
         // 训练数据
         let allCustomWords = [];
@@ -379,6 +400,12 @@
             checkMicPermission();
             updatePauseButton();
             updateModeDisplay();
+            updateClearButton();
+            
+            // 页面加载时自动请求麦克风权限
+            setTimeout(() => {
+                requestMicrophonePermission();
+            }, 1000);
         }
 
         function loadSavedWordList() {
@@ -415,6 +442,69 @@
 
         function getWordArrayFromTextarea() {
             return customWordListTextarea.value.trim().split('\n').filter(line => line.trim() !== '');
+        }
+
+        // ==================== 清空按钮功能 ====================
+        function clearWordList() {
+            if (customWordListTextarea.value.trim() === '') {
+                // 已经是空的
+                return;
+            }
+            
+            customWordListTextarea.value = '';
+            updateWordCount();
+            localStorage.setItem('hearingTrainer_vocab', '');
+            updateClearButton();
+            
+            // 显示清空成功提示
+            feedbackTextDiv.innerHTML = `<span class="feedback-correct">✅ 已清空训练内容</span>`;
+            setTimeout(() => {
+                if (!isTraining) feedbackTextDiv.textContent = '';
+            }, 2000);
+        }
+
+        function updateClearButton() {
+            if (customWordListTextarea.value.trim() === '') {
+                clearBtn.disabled = true;
+                clearBtn.textContent = '已清空';
+            } else {
+                clearBtn.disabled = false;
+                clearBtn.textContent = '清空内容';
+            }
+        }
+
+        // ==================== 麦克风权限请求 ====================
+        function requestMicrophonePermission() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(function(stream) {
+                        console.log("麦克风权限已获得");
+                        isMicPermissionGranted = true;
+                        // 停止所有轨道，避免占用麦克风
+                        stream.getTracks().forEach(track => track.stop());
+                    })
+                    .catch(function(err) {
+                        console.log("麦克风权限被拒绝:", err);
+                        isMicPermissionGranted = false;
+                    });
+            }
+        }
+
+        function checkMicPermission() {
+            if (navigator.permissions && navigator.permissions.query) {
+                navigator.permissions.query({ name: 'microphone' })
+                    .then(permissionStatus => {
+                        isMicPermissionGranted = permissionStatus.state === 'granted';
+                        permissionStatus.onchange = function() {
+                            isMicPermissionGranted = this.state === 'granted';
+                        };
+                    })
+                    .catch(() => {
+                        isMicPermissionGranted = false;
+                    });
+            } else {
+                isMicPermissionGranted = false;
+            }
         }
 
         // ==================== 模式切换 ====================
@@ -468,11 +558,15 @@
                 if (currentUtterance && speechSynth.speaking) {
                     speechSynth.pause();
                 }
-                if (speechRecognition) {
+                if (speechRecognition && isRecording) {
                     speechRecognition.stop();
+                    isRecording = false;
                 }
                 if (advanceTimer) {
                     clearTimeout(advanceTimer);
+                }
+                if (recordTimer) {
+                    clearTimeout(recordTimer);
                 }
                 
                 updateTrainPhase("⏸️ 训练已暂停", true);
@@ -502,24 +596,6 @@
             }
         }
 
-        // ==================== 麦克风权限检查 ====================
-        function checkMicPermission() {
-            if (navigator.permissions && navigator.permissions.query) {
-                navigator.permissions.query({ name: 'microphone' })
-                    .then(permissionStatus => {
-                        isMicPermissionGranted = permissionStatus.state === 'granted';
-                        permissionStatus.onchange = function() {
-                            isMicPermissionGranted = this.state === 'granted';
-                        };
-                    })
-                    .catch(() => {
-                        isMicPermissionGranted = false;
-                    });
-            } else {
-                isMicPermissionGranted = false;
-            }
-        }
-
         // ==================== 语音识别初始化 ====================
         function initSpeechRecognition() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -537,12 +613,15 @@
             speechRecognition.onstart = function() {
                 if (!isPaused) {
                     trainDisplay.classList.add('listening');
+                    isRecording = true;
                 }
             };
             
             speechRecognition.onend = function() {
                 trainDisplay.classList.remove('listening');
-                if (isTraining && currentMode === 'mic' && !isPaused) {
+                isRecording = false;
+                // 如果是训练中且是麦克风模式且未暂停，重新启动识别
+                if (isTraining && currentMode === 'mic' && !isPaused && isRecording) {
                     setTimeout(() => {
                         if (speechRecognition && isTraining && !isPaused) {
                             try {
@@ -569,6 +648,7 @@
                     setMode('text');
                 }
                 trainDisplay.classList.remove('listening');
+                isRecording = false;
             };
         }
 
@@ -578,6 +658,7 @@
             stopBtn.addEventListener('click', stopTraining);
             pauseBtn.addEventListener('click', togglePause);
             saveBtn.addEventListener('click', saveWordList);
+            clearBtn.addEventListener('click', clearWordList);
             textInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter' && !isPaused) submitAnswer();
             });
@@ -591,6 +672,7 @@
             customWordListTextarea.addEventListener('input', function() {
                 updateWordCount();
                 localStorage.setItem('hearingTrainer_vocab', this.value);
+                updateClearButton();
             });
             
             trainCountInput.addEventListener('change', saveSettings);
@@ -608,6 +690,7 @@
                 speechRecognition.stop();
             }
             if (advanceTimer) clearTimeout(advanceTimer);
+            if (recordTimer) clearTimeout(recordTimer);
         }
 
         // ==================== 训练引擎核心 ====================
@@ -684,14 +767,36 @@
                 if (isPaused) return;
                 
                 if (currentMode === 'mic') {
-                    updateTrainPhase("🎤 请跟读...", false);
-                    if (speechRecognition && isTraining && !isPaused) {
-                        try {
-                            speechRecognition.start();
-                        } catch(e) {
-                            console.log("启动识别失败:", e);
+                    // 等待2秒后开始录音
+                    setTimeout(() => {
+                        if (isTraining && !isPaused) {
+                            updateTrainPhase("🎤 请跟读（5秒自动结束）...", false);
+                            // 开始录音
+                            if (speechRecognition && isTraining && !isPaused) {
+                                try {
+                                    speechRecognition.start();
+                                    isRecording = true;
+                                } catch(e) {
+                                    console.log("启动识别失败:", e);
+                                }
+                            }
+                            
+                            // 5秒后自动停止录音并判断
+                            recordTimer = setTimeout(() => {
+                                if (speechRecognition && isRecording) {
+                                    speechRecognition.stop();
+                                    isRecording = false;
+                                    
+                                    // 如果没有识别到内容，自动判断为错误
+                                    setTimeout(() => {
+                                        if (!feedbackTextDiv.textContent) {
+                                            processUserAnswer("");
+                                        }
+                                    }, 500);
+                                }
+                            }, 5000);
                         }
-                    }
+                    }, 2000); // 等待2秒
                 } else {
                     updateTrainPhase("✍️ 请输入您听到的词", false);
                     textInput.focus();
@@ -716,6 +821,12 @@
 
         function processUserAnswer(userAnswer) {
             if (!isTraining || isPaused) return;
+            
+            // 清除录音计时器
+            if (recordTimer) {
+                clearTimeout(recordTimer);
+                recordTimer = null;
+            }
             
             const isCorrect = isAnswerCorrect(userAnswer, currentChallengeWord);
             
@@ -749,6 +860,7 @@
         function stopTraining() {
             isTraining = false;
             isPaused = false;
+            isRecording = false;
             
             if (currentUtterance && speechSynth.speaking) {
                 speechSynth.cancel();
@@ -757,6 +869,7 @@
                 speechRecognition.stop();
             }
             if (advanceTimer) clearTimeout(advanceTimer);
+            if (recordTimer) clearTimeout(recordTimer);
             
             startBtn.disabled = false;
             stopBtn.disabled = true;
