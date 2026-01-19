@@ -20,6 +20,56 @@
         .header { text-align: center; margin-bottom: 40px; }
         h1 { color: var(--dark); font-size: 2.8em; margin-bottom: 10px; background: linear-gradient(90deg, var(--primary), #9d4edd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         
+        /* Safari启动覆盖层 */
+        .safari-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        .safari-content {
+            background: white;
+            padding: 50px;
+            border-radius: 30px;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+        }
+        .safari-title {
+            font-size: 2.2em;
+            color: var(--primary);
+            margin-bottom: 20px;
+        }
+        .safari-message {
+            font-size: 1.2em;
+            color: var(--dark);
+            margin-bottom: 35px;
+            line-height: 1.6;
+        }
+        .safari-btn {
+            background: linear-gradient(135deg, var(--success), #05a078);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 20px 50px;
+            font-size: 1.4em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+        .safari-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+        }
+        
         .main-area { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
         @media (max-width: 900px) { .main-area { grid-template-columns: 1fr; } }
         
@@ -179,6 +229,20 @@
     </style>
 </head>
 <body>
+    <!-- Safari启动覆盖层 -->
+    <div class="safari-overlay" id="safariOverlay">
+        <div class="safari-content">
+            <div class="safari-title">🎤 准备开始训练</div>
+            <div class="safari-message">
+                为了在Safari浏览器中正常使用音频功能，<br>
+                请点击下方按钮激活音频系统。<br>
+                <br>
+                <small>（只需在每次页面加载时点击一次）</small>
+            </div>
+            <button class="safari-btn" id="safariActivateBtn">✅ 点击激活音频</button>
+        </div>
+    </div>
+    
     <div class="container">
         <div class="header">
             <h1>🎤 训听器</h1>
@@ -328,6 +392,7 @@
             <div class="permission-info-title">🎤 麦克风权限说明</div>
             <p><strong>注意：</strong>如果您选择"麦克风跟读"模式，第一次点击"开始挑战"时，浏览器会弹出权限请求窗口。</p>
             <p>请点击<strong>"允许"</strong>以使用麦克风功能。权限只需授予一次，浏览器会记住您的选择。</p>
+            <p><strong>使用Safari浏览器时</strong>：请在"页面菜单"中点击麦克风图标，选择"允许"。</p>
             <p>如果误点了"拒绝"，请在浏览器地址栏左侧点击"🔒"图标或"🌐"图标，手动开启麦克风权限。</p>
         </div>
         
@@ -351,6 +416,8 @@
         const permissionInfoBox = document.getElementById('permissionInfoBox');
         const modeButtons = document.querySelectorAll('.mode-btn');
         const currentModeDisplay = document.getElementById('currentModeDisplay');
+        const safariOverlay = document.getElementById('safariOverlay');
+        const safariActivateBtn = document.getElementById('safariActivateBtn');
         
         // 训练显示元素
         const trainDisplay = document.getElementById('trainDisplay');
@@ -376,6 +443,9 @@
         let advanceTimer = null;
         let recordTimer = null; // 录音计时器
         let isRecording = false; // 是否正在录音
+        let isAnalyzing = false; // 是否正在分析录音
+        let audioActivated = false; // 音频系统是否已激活
+        let micStream = null; // 麦克风流
         
         // 训练数据
         let allCustomWords = [];
@@ -392,20 +462,60 @@
 
         // ==================== 初始化 ====================
         function init() {
+            // 检查是否为Safari浏览器
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            
+            if (isSafari) {
+                // Safari浏览器：显示激活界面
+                safariOverlay.style.display = 'flex';
+            } else {
+                // 其他浏览器：直接初始化
+                safariOverlay.style.display = 'none';
+                activateAudioSystem();
+            }
+            
+            setupEventListeners();
             loadSavedWordList();
             loadSettings();
             updateWordCount();
-            setupEventListeners();
-            initSpeechRecognition();
-            checkMicPermission();
-            updatePauseButton();
             updateModeDisplay();
             updateClearButton();
+        }
+
+        // 激活音频系统
+        function activateAudioSystem() {
+            audioActivated = true;
+            safariOverlay.style.display = 'none';
+            
+            // 初始化语音识别
+            initSpeechRecognition();
+            
+            // 检查麦克风权限
+            checkMicPermission();
             
             // 页面加载时自动请求麦克风权限
             setTimeout(() => {
                 requestMicrophonePermission();
-            }, 1000);
+            }, 500);
+            
+            // 预加载一个静音音频，激活音频上下文
+            preloadAudio();
+        }
+
+        // 预加载音频激活音频系统
+        function preloadAudio() {
+            // 创建一个静音的音频元素，激活音频系统
+            const silentAudio = new Audio();
+            silentAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+            silentAudio.volume = 0;
+            
+            // 尝试播放（静音）
+            silentAudio.play().then(() => {
+                console.log("音频系统已激活");
+                silentAudio.pause();
+            }).catch(err => {
+                console.log("音频预加载失败:", err);
+            });
         }
 
         function loadSavedWordList() {
@@ -447,7 +557,6 @@
         // ==================== 清空按钮功能 ====================
         function clearWordList() {
             if (customWordListTextarea.value.trim() === '') {
-                // 已经是空的
                 return;
             }
             
@@ -456,7 +565,6 @@
             localStorage.setItem('hearingTrainer_vocab', '');
             updateClearButton();
             
-            // 显示清空成功提示
             feedbackTextDiv.innerHTML = `<span class="feedback-correct">✅ 已清空训练内容</span>`;
             setTimeout(() => {
                 if (!isTraining) feedbackTextDiv.textContent = '';
@@ -480,8 +588,16 @@
                     .then(function(stream) {
                         console.log("麦克风权限已获得");
                         isMicPermissionGranted = true;
-                        // 停止所有轨道，避免占用麦克风
-                        stream.getTracks().forEach(track => track.stop());
+                        micStream = stream;
+                        
+                        // Safari需要保持流活跃，否则会丢失权限
+                        if (/^((?!chrome|android).)*safari/i.test(navigator.userAgent)) {
+                            // 保持一个静音轨道活跃
+                            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                            const source = audioContext.createMediaStreamSource(stream);
+                            const destination = audioContext.createMediaStreamDestination();
+                            source.connect(destination);
+                        }
                     })
                     .catch(function(err) {
                         console.log("麦克风权限被拒绝:", err);
@@ -518,7 +634,6 @@
                 }
             });
             
-            // 更新界面显示
             if (mode === 'mic') {
                 micStatusText.textContent = "麦克风跟读模式";
                 currentModeDisplay.textContent = "麦克风跟读模式";
@@ -531,6 +646,12 @@
                 permissionGuide.classList.remove('show');
                 permissionInfoBox.classList.remove('show');
                 textInput.classList.add('show');
+                
+                // 打字模式下停止麦克风
+                if (speechRecognition && isRecording) {
+                    speechRecognition.stop();
+                    isRecording = false;
+                }
             }
             
             saveSettings();
@@ -554,7 +675,6 @@
             isPaused = !isPaused;
             
             if (isPaused) {
-                // 暂停逻辑
                 if (currentUtterance && speechSynth.speaking) {
                     speechSynth.pause();
                 }
@@ -562,21 +682,15 @@
                     speechRecognition.stop();
                     isRecording = false;
                 }
-                if (advanceTimer) {
-                    clearTimeout(advanceTimer);
-                }
-                if (recordTimer) {
-                    clearTimeout(recordTimer);
-                }
+                if (advanceTimer) clearTimeout(advanceTimer);
+                if (recordTimer) clearTimeout(recordTimer);
                 
                 updateTrainPhase("⏸️ 训练已暂停", true);
                 pauseBtn.innerHTML = '▶️ 继续';
             } else {
-                // 继续逻辑
                 if (currentUtterance && speechSynth.paused) {
                     speechSynth.resume();
                 } else {
-                    // 如果没有正在播放的语音，继续下一个词
                     speakNextWord();
                 }
                 
@@ -620,23 +734,24 @@
             speechRecognition.onend = function() {
                 trainDisplay.classList.remove('listening');
                 isRecording = false;
-                // 如果是训练中且是麦克风模式且未暂停，重新启动识别
-                if (isTraining && currentMode === 'mic' && !isPaused && isRecording) {
+                
+                // 如果正在分析中，重新开始录音
+                if (isTraining && currentMode === 'mic' && !isPaused && isAnalyzing) {
                     setTimeout(() => {
-                        if (speechRecognition && isTraining && !isPaused) {
+                        if (speechRecognition && isTraining && !isPaused && isAnalyzing) {
                             try {
                                 speechRecognition.start();
                             } catch(e) {
                                 console.log("重新启动识别失败");
                             }
                         }
-                    }, 500);
+                    }, 100);
                 }
             };
             
             speechRecognition.onresult = function(event) {
                 const transcript = event.results[0][0].transcript.trim();
-                if (transcript && !isPaused) {
+                if (transcript && !isPaused && isAnalyzing) {
                     processUserAnswer(transcript);
                 }
             };
@@ -649,11 +764,13 @@
                 }
                 trainDisplay.classList.remove('listening');
                 isRecording = false;
+                isAnalyzing = false;
             };
         }
 
         // ==================== 事件监听 ====================
         function setupEventListeners() {
+            safariActivateBtn.addEventListener('click', activateAudioSystem);
             startBtn.addEventListener('click', startTraining);
             stopBtn.addEventListener('click', stopTraining);
             pauseBtn.addEventListener('click', togglePause);
@@ -691,10 +808,20 @@
             }
             if (advanceTimer) clearTimeout(advanceTimer);
             if (recordTimer) clearTimeout(recordTimer);
+            
+            // 关闭麦克风流
+            if (micStream) {
+                micStream.getTracks().forEach(track => track.stop());
+            }
         }
 
         // ==================== 训练引擎核心 ====================
         function startTraining() {
+            if (!audioActivated) {
+                updateTrainPhase("❌ 请先点击'激活音频'按钮", true);
+                return;
+            }
+            
             if (isTraining) return;
             
             allCustomWords = getWordArrayFromTextarea();
@@ -724,6 +851,7 @@
             correctCount = 0;
             wrongCount = 0;
             isPaused = false;
+            isAnalyzing = false;
             
             totalWordsStatSpan.textContent = totalChallenges;
             correctWordsStatSpan.textContent = '0';
@@ -763,29 +891,37 @@
             currentUtterance.pitch = 1;
             currentUtterance.volume = 1;
             
+            currentUtterance.onstart = function() {
+                isAnalyzing = false; // 语音播放期间不分析
+            };
+            
             currentUtterance.onend = function() {
                 if (isPaused) return;
                 
                 if (currentMode === 'mic') {
-                    // 等待2秒后开始录音
+                    // 等待1秒后开始分析录音
                     setTimeout(() => {
                         if (isTraining && !isPaused) {
-                            updateTrainPhase("🎤 请跟读（5秒自动结束）...", false);
-                            // 开始录音
-                            if (speechRecognition && isTraining && !isPaused) {
+                            updateTrainPhase("读出你听到的答案", false);
+                            isAnalyzing = true; // 开始分析阶段
+                            
+                            // 开始录音（如果还没开始）
+                            if (speechRecognition && isTraining && !isPaused && !isRecording) {
                                 try {
                                     speechRecognition.start();
-                                    isRecording = true;
                                 } catch(e) {
                                     console.log("启动识别失败:", e);
                                 }
                             }
                             
-                            // 5秒后自动停止录音并判断
+                            // 3秒后自动停止分析并判断
                             recordTimer = setTimeout(() => {
-                                if (speechRecognition && isRecording) {
-                                    speechRecognition.stop();
-                                    isRecording = false;
+                                if (isAnalyzing) {
+                                    isAnalyzing = false;
+                                    
+                                    if (speechRecognition && isRecording) {
+                                        speechRecognition.stop();
+                                    }
                                     
                                     // 如果没有识别到内容，自动判断为错误
                                     setTimeout(() => {
@@ -794,9 +930,9 @@
                                         }
                                     }, 500);
                                 }
-                            }, 5000);
+                            }, 3000); // 3秒分析时间
                         }
-                    }, 2000); // 等待2秒
+                    }, 1000); // 等待1秒
                 } else {
                     updateTrainPhase("✍️ 请输入您听到的词", false);
                     textInput.focus();
@@ -822,7 +958,9 @@
         function processUserAnswer(userAnswer) {
             if (!isTraining || isPaused) return;
             
-            // 清除录音计时器
+            // 停止分析
+            isAnalyzing = false;
+            
             if (recordTimer) {
                 clearTimeout(recordTimer);
                 recordTimer = null;
@@ -861,6 +999,7 @@
             isTraining = false;
             isPaused = false;
             isRecording = false;
+            isAnalyzing = false;
             
             if (currentUtterance && speechSynth.speaking) {
                 speechSynth.cancel();
